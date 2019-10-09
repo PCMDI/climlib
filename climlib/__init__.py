@@ -1,7 +1,7 @@
 """
-PCMDI custom package of helpful utilities. 
+PCMDI custom package of helpful utilities.
 
-Includes these modules: 
+Includes these modules:
     -- wrangle  - functions to wrangle model data
     -- io   	- functions to help read/write data
     -- util     - functions to help with uvcdat issues
@@ -14,5 +14,3 @@ Includes these modules:
 
 from .wrangle import trimModelList
 from .wrangle import getFileMeta
-
-
