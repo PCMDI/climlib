@@ -90,7 +90,11 @@ def getFileMeta(fn):
         publish = True
     else:
         publish = False
-    tpoints = len(fh['time'])
+    axisList = fh.axes
+    if 'time' in axisList.keys():
+        tpoints = len(fh['time'])
+    else:
+        tpoints = 0
     fh.close()
     return cdate, publish, tpoints
 
