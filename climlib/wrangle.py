@@ -80,7 +80,11 @@ def getFileMeta(fn):
             tpoints:    the number of timesteps in the dataset
     """
     fh = cdms2.open(fn)
-    cdate = fh.creation_date
+    if 'creation_date' in fh.attributes:
+        cdate = fh.creation_date
+    else:
+        cdate = '1989-03-06T17:00:00Z' ; # Assume PCMDI dawn of time
+    # If missing, default to PCMDI dawn of time 9am Monday 6th March 1989
     # most dates are of form: 2012-02-13T00:40:33Z
     # some are: Thu Aug 11 22:49:09 EST 2011 - just make 20110101
     if cdate[0].isalpha():
