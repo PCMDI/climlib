@@ -1,5 +1,6 @@
 import numpy as np
 import cdms2
+import glob
 
 
 def filterXmls(files, keyMap, crit):
@@ -21,7 +22,8 @@ def filterXmls(files, keyMap, crit):
         the filter critera is 'publish' and a list with two published and two
         unpublished files are passed to the function, the two published files
         will be returned. The criteria can be boolean or int (will return True
-        booleans and the max integer).
+        booleans and the max integer). Alternatively, if the criteria is
+        creation date it will return files with the most recent creation date
 
         If only one file is in the list, the original list is returned (with
         one file).
@@ -100,7 +102,7 @@ def getFileMeta(fn):
 
 
 def trimModelList(files,
-                  criteria=['tpoints', 'publish', 'cdate', 'ver'],
+                  criteria=['cdate', 'ver', 'tpoints'],
                   verbose=False):
     """ filesOut = trimModelList(files)
 
@@ -109,10 +111,10 @@ def trimModelList(files,
 
         The returned files are priorized by a cascading criteria, which can be
         optionally specified. The default order is:
-            tpoints:    prioritizes files with more time steps
-            publish:    prioritizes files that have been published
             cdate:      prioritizes files that were created more recently
             ver:        prioritizes files based on version id
+            tpoints:    prioritizes files with more time steps
+            publish:    prioritizes files that have 'publish' in their path
 
         The cascading criteria can be altered by specifying an optional
         argument, critera, with a list of the strings above (e.g.,
@@ -183,3 +185,117 @@ def trimModelList(files,
                     print('* ' + subFiles[0])
 
     return filesOut
+
+
+def getXmlFiles(**kwargs):
+    """
+        getXmlFiles(**kwargs)
+
+        Function returns a list of xml files based on user-defined
+        search criteria (at least one search constraint msut be
+        provided). The optional arguments, include:
+
+            base : base path to search (default /p/user_pub/xclim/)
+            mip_era : mip_era for CMIP data
+            activity : activity for CMIP data
+            experiment : experiment for CMIP data
+            realm : realm for CMIP data
+            frequency : frequency for CMIP data
+            variable : variable for CMIP data
+            model : model for CMIP data
+            realization : realization for CMIP data
+            gridLabel : grid label for CMIP data
+            trim : Boolean to trim off duplicate files (default True)
+
+        Example Usage:
+            files = getXmlFiles(model='CCSM4',
+                                experiment='historical',
+                                variable='tas',
+                                mip_era = 'CMIP5',
+                                activity = 'CMIP',
+                                realm = 'atmos',
+                                frequency = 'mon',
+                                gridLabel = 'Amon',
+                                realization = 'r1i1p1')
+
+        Returns:
+            ['/p/user_pub/xclim//CMIP5/CMIP/historical/atmos/mon/tas/CMIP5...
+               CMIP.historical.NCAR.CCSM4.r1i1p1.mon.tas.atmos.glb-z1-gu.v20160829.0000000.0.xml']
+    """
+    #  Define default dictionary
+    pathDict = {'base': '/p/user_pub/xclim/',
+                'mip_era': '*',
+                'activity': '*',
+                'experiment': '*',
+                'realm': '*',
+                'frequency': '*',
+                'variable': '*',
+                'model': '*',
+                'realization': '*',
+                'gridLabel': '*',
+                'trim': True,
+                'verbose': True}
+
+    #  Ensure search arguments were provided
+    if len(kwargs.keys()) == 0:
+        print('No search criteria provided. Provide search '
+              'constraints, such as: \n\n'
+              'mip_era, activity, experiment, realm, frequency, '
+              'variable, model, realization')
+        return
+
+    #  Replace default arguments with user-provided arguments
+    for key in kwargs:
+        if key in pathDict.keys():
+            pathDict[key] = kwargs[key]
+
+    #  Construct path to search
+    pathString = '{0}/{1}/{2}/{3}/{4}\
+                  /{5}/{6}/*.{7}.{8}\
+                  .*.{9}.*.xml'.format(pathDict['base'],
+                                       pathDict['mip_era'],
+                                       pathDict['activity'],
+                                       pathDict['experiment'],
+                                       pathDict['realm'],
+                                       pathDict['frequency'],
+                                       pathDict['variable'],
+                                       pathDict['model'],
+                                       pathDict['realization'],
+                                       pathDict['gridLabel'])
+    pathString = pathString.replace(' ', '')  # Remove white space
+
+    # Find xml files
+    files = glob.glob(pathString)
+
+    #  Trim Model List
+    if pathDict['trim']:
+        files = trimModelList(files)
+
+    if ((len(files) == 0) & (pathDict['verbose'])):
+        print(pathString)
+
+    return files
+
+
+def findInList(keyString, list):
+    """
+    find_in_list(keyString, list)
+
+    Intended to subset a list of strings that include a keyword.
+
+    Inputs:
+        list:           list of string (e.g., ['tom', 'bob', 'tommy'])
+        keyString:      string to check each list entry with (e.g., 'tom')
+
+    Example:
+
+        find_in_list('tom', ['tom', 'bob', 'tommy'])
+            returns: ['tom', 'tommy']
+
+
+    """
+    outList = list
+    for key in keyString.split('*'):
+        outList = [s for s in outList if key in s]
+
+    return outList;

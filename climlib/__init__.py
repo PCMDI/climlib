@@ -8,9 +8,13 @@ Includes these modules:
     -- calc     - functions to help with calculations
     -- plot     - functions to help with plotting
     -- constant - library of constants/lookups
+    -- dev		- functions in development / not ready for showtime
 
 """
 
 
 from .wrangle import trimModelList
 from .wrangle import getFileMeta
+from .wrangle import getXmlFiles
+from .wrangle import findInList
+from .dev import *
