@@ -8,21 +8,21 @@ def filterXmls(files, keyMap, crit):
         outList = filterXmls(files, keyMap, crit)
 
         Function to narrow down the number of xml files in a
-        list based on file metadata and a metadata criteria.
+        list based on file metadata criteria.
 
         Inputs:
             files:      list of xml files
             keyMap:     dictionary (xml filenames are keys) which includes
                         the metadata associated with the xml (e.g., ver, cdate,
-                        publish, tpoints)
+                        republish, tpoints)
             crit:       string of criteria (e.g., 'tpoints') in which to filter
                         the input list of files
 
         filterXmls will take the top value(s) from the list. For example, if
-        the filter critera is 'publish' and a list with two published and two
-        unpublished files are passed to the function, the two published files
-        will be returned. The criteria can be boolean or int (will return True
-        booleans and the max integer). Alternatively, if the criteria is
+        the filter criteria is 'republish' and a list with two republished and
+        two unpublished files are passed to the function, the two republished
+        files will be returned. The criteria can be boolean or int (will return
+        True booleans and the max integer). Alternatively, if the criteria is
         creation date it will return files with the most recent creation date
 
         If only one file is in the list, the original list is returned (with
@@ -52,12 +52,10 @@ def filterXmls(files, keyMap, crit):
 def versionWeight(v):
     """ v = versionWeight(ver)
 
-        versionWeight takes a version string for
-        a CMIP xml and returns a numeric in which the larger
-        the number, the more recent the version. Typically
-        an int corresponding to the date (e.g., 20190829), but
-        will give precedence to version numbers (e.g., v1 is
-        returned as 100000000).
+        versionWeight takes a version string for a CMIP xml and returns a
+        numeric in which the larger the number, the more recent the version.
+        Typically an int corresponding to the date (e.g., 20190829), but will
+        give precedence to version numbers (e.g., v1 is returned as 100000000).
     """
     if v == 'latest':
         v = 0
@@ -70,13 +68,12 @@ def versionWeight(v):
 
 
 def getFileMeta(fn):
-    """ cdate, publish, tpoints = getFileMeta(fn)
+    """ cdate, republish, tpoints = getFileMeta(fn)
 
-        getFileMeta takes a filename (fn) for a CMIP xml
-        and returns:
+        getFileMeta takes a filename (fn) for a CMIP xml and returns:
             cdate:      creation date
-            publish:    boolean if the underlying data is
-                        the publish directories
+            republish:  boolean if the underlying data is in the LLNL publish
+                        directories
             tpoints:    the number of timesteps in the dataset
     """
     fh = cdms2.open(fn)
@@ -91,18 +88,18 @@ def getFileMeta(fn):
         cdate = int(cdate.split(' ')[-1] + '0101')
     else:
         cdate = int(cdate.split('T')[0].replace('-', ''))
-    # check if published
+    # check if republished
     if fh.directory.find('publish') > 0:
-        publish = True
+        republish = True
     else:
-        publish = False
+        republish = False
     axisList = fh.axes
     if 'time' in axisList.keys():
         tpoints = len(fh['time'])
     else:
         tpoints = 0
     fh.close()
-    return cdate, publish, tpoints
+    return cdate, republish, tpoints
 
 
 def trimModelList(files,
@@ -118,14 +115,14 @@ def trimModelList(files,
             cdate:      prioritizes files that were created more recently
             ver:        prioritizes files based on version id
             tpoints:    prioritizes files with more time steps
-            publish:    prioritizes files that have 'publish' in their path
+            republish:  prioritizes files that have 'publish' in their path
 
         The cascading criteria can be altered by specifying an optional
-        argument, critera, with a list of the strings above (e.g.,
-        criteria=['publish', 'tpoints', 'ver', 'cdate']).
+        argument, criteria, with a list of the strings above (e.g.,
+        criteria=['republish', 'tpoints', 'ver', 'cdate']).
 
-        An additional optional argument is verbose (boolean), which by default
-        is False.
+        An additional optional argument is verbose (boolean), which will output
+        diagnostic information during execution. By default verbose is False.
     """
     keyMap = {}
     models = []
@@ -136,13 +133,13 @@ def trimModelList(files,
         model = fn.split('/')[-1].split('.')[4]
         rip = fn.split('/')[-1].split('.')[5]
         ver = versionWeight(fn.split('/')[-1].split('.')[10])
-        cdate, publish, tpoints = getFileMeta(fn)
+        cdate, republish, tpoints = getFileMeta(fn)
         # collect all models and rips
         models.append(model)
         rips.append(rip)
         # store data in dictionary
         keyMap[fn] = {'model': model, 'rip': rip, 'ver': ver, 'cdate': cdate,
-                      'publish': publish, 'tpoints': tpoints}
+                      'republish': republish, 'tpoints': tpoints}
     # get unique models / rips
     rips = list(set(rips))
     models = list(set(models))
@@ -195,9 +192,9 @@ def getXmlFiles(**kwargs):
     """
         getXmlFiles(**kwargs)
 
-        Function returns a list of xml files based on user-defined
-        search criteria (at least one search constraint msut be
-        provided). The optional arguments, include:
+        Function returns a list of xml files based on user-defined search
+        criteria (at least one search constraint must be provided). The
+        optional arguments, include:
 
             base : base path to search (default /p/user_pub/xclim/)
             mip_era : mip_era for CMIP data
@@ -242,8 +239,7 @@ def getXmlFiles(**kwargs):
 
     #  Ensure search arguments were provided
     if len(kwargs.keys()) == 0:
-        print('No search criteria provided. Provide search '
-              'constraints, such as: \n\n'
+        print('No search criteria provided. Provide search constraints, such as: \n\n'
               'mip_era, activity, experiment, realm, frequency, '
               'variable, model, realization')
         return
@@ -295,8 +291,6 @@ def findInList(keyString, list):
 
         find_in_list('tom', ['tom', 'bob', 'tommy'])
             returns: ['tom', 'tommy']
-
-
     """
     outList = list
     for key in keyString.split('*'):
