@@ -1,3 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Climlib wrangle module.
+
+This module captures a number of convenience functions that are centred on easy
+use of the LLNL in-house CMIPx data archives. For most of the local data, xml
+spanning files have been generated to facilitate use and access to the
+datasets. The functions included in this library make use of the logic of the
+filenames and metadata to provide a rich access experience for a user.
+
+Todo:
+----
+    * migrate durolib functions
+"""
+
 import numpy as np
 import cdms2
 import glob
@@ -6,29 +21,28 @@ from pyesgf.search import SearchConnection
 
 def filterXmls(files, keyMap, crit):
     """
-        outList = filterXmls(files, keyMap, crit)
+    OutList = filterXmls(files, keyMap, crit).
 
-        Function to narrow down the number of xml files in a
-        list based on file metadata and a metadata criteria.
+    Function to narrow down the number of xml files in a list based on
+    file metadata and selection criteria.
 
-        Inputs:
-            files:      list of xml files
-            keyMap:     dictionary (xml filenames are keys) which includes
-                        the metadata associated with the xml (e.g., ver, cdate,
-                        publish, tpoints)
-            crit:       string of criteria (e.g., 'tpoints') in which to filter
-                        the input list of files
+    Inputs:
+        files:      list of xml files
+        keyMap:     dictionary (xml filenames are keys) which includes
+                    the metadata associated with the xml (e.g., ver, cdate,
+                    publish, tpoints)
+        crit:       string of criteria (e.g., 'tpoints') in which to filter
+                    the input list of files
 
-        filterXmls will take the top value(s) from the list. For example, if
-        the filter critera is 'publish' and a list with two published and two
-        unpublished files are passed to the function, the two published files
-        will be returned. The criteria can be boolean or int (will return True
-        booleans and the max integer). Alternatively, if the criteria is
-        creation date it will return files with the most recent creation date
+    filterXmls will take the top value(s) from the list. For example, if
+    the filter criteria is 'publish' and a list with two republished and two
+    unpublished files are passed to the function, the two republished files
+    will be returned. The criteria can be boolean or int (will return True
+    booleans and the max integer). Alternatively, if the criteria is creation
+    date it will return files with the most recent creation date
 
-        If only one file is in the list, the original list is returned (with
-        one file).
-
+    If only one file is in the list, the original list is returned (with
+    one file).
     """
     if len(files) < 2:
         return files
@@ -43,48 +57,47 @@ def filterXmls(files, keyMap, crit):
     else:
         vmax = True
     # create output list
-    outList = []
+    OutList = []
     for fn in files:
         if keyMap[fn][crit] == vmax:
-            outList.append(fn)
-    return outList
+            OutList.append(fn)
+    return OutList
 
 
-def versionWeight(v):
-    """ v = versionWeight(ver)
-
-        versionWeight takes a version string for
-        a CMIP xml and returns a numeric in which the larger
-        the number, the more recent the version. Typically
-        an int corresponding to the date (e.g., 20190829), but
-        will give precedence to version numbers (e.g., v1 is
-        returned as 100000000).
+def versionWeight(V):
     """
-    if v == 'latest':
-        v = 0
+    V = versionWeight(ver).
+
+    versionWeight takes a version string for a CMIP xml and returns a
+    numeric in which the larger the number, the more recent the version.
+    Typically an int corresponding to the date (e.g., 20190829), but will
+    give precedence to version numbers (e.g., v1 is returned as 100000000).
+    """
+    if V == 'latest':
+        V = 0
     else:
-        v = int(v.replace('v', ''))
-        if v < 10:
-            v = v*100000000
-    v = int(v)
-    return v
+        V = int(V.replace('v', ''))
+        if V < 10:
+            V = V*100000000
+    V = int(V)
+    return V
 
 
 def getFileMeta(fn):
-    """ cdate, publish, tpoints = getFileMeta(fn)
+    """
+    cdate, publish, tpoints = getFileMeta(fn).
 
-        getFileMeta takes a filename (fn) for a CMIP xml
-        and returns:
-            cdate:      creation date
-            publish:    boolean if the underlying data is
-                        the publish directories
-            tpoints:    the number of timesteps in the dataset
+    getFileMeta takes a filename (fn) for a CMIP xml and returns:
+        cdate:      creation date
+        publish:    boolean if the underlying data is in the LLNL publish
+                    directories (if it has been locally republished)
+        tpoints:    the number of timesteps in the dataset
     """
     fh = cdms2.open(fn)
     if 'creation_date' in fh.attributes:
         cdate = fh.creation_date
     else:
-        cdate = '1989-03-06T17:00:00Z' ; # Assume PCMDI dawn of time
+        cdate = '1989-03-06T17:00:00Z'  # Assume PCMDI dawn of time
     # If missing, default to PCMDI dawn of time 9am Monday 6th March 1989
     # most dates are of form: 2012-02-13T00:40:33Z
     # some are: Thu Aug 11 22:49:09 EST 2011 - just make 20110101
@@ -92,8 +105,8 @@ def getFileMeta(fn):
         cdate = int(cdate.split(' ')[-1] + '0101')
     else:
         cdate = int(cdate.split('T')[0].replace('-', ''))
-    # check if published
-    if fh.directory.find('publish') > 0:
+    # check if republished
+    if bool(fh.directory.find('publish')):
         publish = True
     else:
         publish = False
@@ -109,24 +122,25 @@ def getFileMeta(fn):
 def trimModelList(files,
                   criteria=['cdate', 'ver', 'tpoints'],
                   verbose=False):
-    """ filesOut = trimModelList(files)
+    """
+    FilesOut = trimModelList(files).
 
-        trimModelList takes in a list of xml files and returns a list of xml
-        files such that there is one xml file per model and realization.
+    trimModelList takes in a list of xml files and returns a list of xml
+    files such that there is one xml file per model and realization.
 
-        The returned files are priorized by a cascading criteria, which can be
-        optionally specified. The default order is:
-            cdate:      prioritizes files that were created more recently
-            ver:        prioritizes files based on version id
-            tpoints:    prioritizes files with more time steps
-            publish:    prioritizes files that have 'publish' in their path
+    The returned files are priorized by a cascading criteria, which can be
+    optionally specified. The default order is:
+        cdate:      prioritizes files that were created more recently
+        ver:        prioritizes files based on version id
+        tpoints:    prioritizes files with more time steps
+        publish:    prioritizes files that have 'publish' in their path
 
-        The cascading criteria can be altered by specifying an optional
-        argument, critera, with a list of the strings above (e.g.,
-        criteria=['publish', 'tpoints', 'ver', 'cdate']).
+    The cascading criteria can be altered by specifying an optional
+    argument, criteria, with a list of the strings above (e.g.,
+    criteria=['publish', 'tpoints', 'ver', 'cdate']).
 
-        An additional optional argument is verbose (boolean), which by default
-        is False.
+    An additional optional argument is verbose (boolean), which will output
+    diagnostic information during execution. By default verbose is False.
     """
     keyMap = {}
     models = []
@@ -157,7 +171,7 @@ def trimModelList(files,
             # subset files for each model / realization
             subFiles = [fn for fn in keyMap.keys() if
                         (keyMap[fn]['model'] == model
-                            and keyMap[fn]['rip'] == rip)]
+                         and keyMap[fn]['rip'] == rip)]
             # continue whittling down file list until only one is left
             # by iteratively using each criteria
             for crit in criteria:
@@ -194,38 +208,41 @@ def trimModelList(files,
 
 def getXmlFiles(**kwargs):
     """
-        getXmlFiles(**kwargs)
+    getXmlFiles(**kwargs).
 
-        Function returns a list of xml files based on user-defined
-        search criteria (at least one search constraint msut be
-        provided). The optional arguments, include:
+    Function returns a list of xml files based on user-defined search
+    criteria (at least one search constraint must be provided). The
+    optional arguments, include:
 
-            base : base path to search (default /p/user_pub/xclim/)
-            mip_era : mip_era for CMIP data
-            activity : activity for CMIP data
-            experiment : experiment for CMIP data
-            realm : realm for CMIP data
-            frequency : frequency for CMIP data
-            variable : variable for CMIP data
-            model : model for CMIP data
-            realization : realization for CMIP data
-            gridLabel : grid label for CMIP data
-            trim : Boolean to trim off duplicate files (default True)
+        base : base path to search (default /p/user_pub/xclim/)
+        mip_era : mip_era for CMIP data
+        activity : activity for CMIP data
+        experiment : experiment for CMIP data
+        realm : realm for CMIP data
+        frequency : frequency for CMIP data
+        variable : variable for CMIP data
+        model : model for CMIP data
+        realization : realization for CMIP data
+        gridLabel : grid label for CMIP data
+        trim : Boolean to trim off duplicate files (default True)
 
-        Example Usage:
-            files = getXmlFiles(model='CCSM4',
-                                experiment='historical',
-                                variable='tas',
-                                mip_era = 'CMIP5',
-                                activity = 'CMIP',
-                                realm = 'atmos',
-                                frequency = 'mon',
-                                gridLabel = 'Amon',
-                                realization = 'r1i1p1')
+    Example Usage:
+    -------------
+        files = getXmlFiles(model='CCSM4',
+                            experiment='historical',
+                            variable='tas',
+                            mip_era = 'CMIP5',
+                            activity = 'CMIP',
+                            realm = 'atmos',
+                            frequency = 'mon',
+                            gridLabel = 'Amon',
+                            realization = 'r1i1p1')
 
-        Returns:
-            ['/p/user_pub/xclim//CMIP5/CMIP/historical/atmos/mon/tas/CMIP5...
-               CMIP.historical.NCAR.CCSM4.r1i1p1.mon.tas.atmos.glb-z1-gu.v20160829.0000000.0.xml']
+    Returns:
+    -------
+        ['/p/user_pub/xclim//CMIP5/CMIP/historical/atmos/mon/tas/CMIP5...
+           CMIP.historical.NCAR.CCSM4.r1i1p1.mon.tas.atmos.glb-z1-gu...
+           v20160829.0000000.0.xml']
     """
     #  Define default dictionary
     pathDict = {'base': '/p/user_pub/xclim/',
@@ -243,8 +260,8 @@ def getXmlFiles(**kwargs):
 
     #  Ensure search arguments were provided
     if len(kwargs.keys()) == 0:
-        print('No search criteria provided. Provide search '
-              'constraints, such as: \n\n'
+        print('No search criteria provided. Provide search constraints, such '
+              'as: \n\n'
               'mip_era, activity, experiment, realm, frequency, '
               'variable, model, realization')
         return
@@ -276,30 +293,28 @@ def getXmlFiles(**kwargs):
     if pathDict['trim']:
         files = trimModelList(files)
 
-    if ((len(files) == 0) & (pathDict['verbose'])):
+    if (len(files) == 0) & (pathDict['verbose']):
         print(pathString)
 
     return files
 
 
-def findInList(keyString, list):
+def findInList(keyString, inList):
     """
-    find_in_list(keyString, list)
+    find_in_list(keyString, inList).
 
     Intended to subset a list of strings that include a keyword.
 
     Inputs:
-        list:           list of string (e.g., ['tom', 'bob', 'tommy'])
+        inList:         list of string (e.g., ['tom', 'bob', 'tommy'])
         keyString:      string to check each list entry with (e.g., 'tom')
 
     Example:
-
+    -------
         find_in_list('tom', ['tom', 'bob', 'tommy'])
             returns: ['tom', 'tommy']
-
-
     """
-    outList = list
+    outList = inList
     for key in keyString.split('*'):
         outList = [s for s in outList if key in s]
 
