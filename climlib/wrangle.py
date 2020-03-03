@@ -1,6 +1,7 @@
 import numpy as np
 import cdms2
 import glob
+from pyesgf.search import SearchConnection
 
 
 def filterXmls(files, keyMap, crit):
@@ -302,4 +303,108 @@ def findInList(keyString, list):
     for key in keyString.split('*'):
         outList = [s for s in outList if key in s]
 
-    return outList;
+    return outList
+
+
+def getESGFDatasets(mip_era, experiment, variable, frequency=None, table=None):
+    """
+    dataDict = getESGFDatasets(mip_era, experiment, variable)
+
+    Inputs:
+        mip_era (str):        CMIP3, CMIP5, or CMIP6
+        experiment (str):     experiment id to search for (e.g., 'historical')
+        variable (str):       variable id to search for (e.g., 'tas,ta')
+
+    Optional arguments:
+        frequency (str):      frequency to search for (e.g., mon)
+        table (str):          table id to search for
+
+    Returns:
+        dataDict              Nested dictionary of available datasets:
+                                - experiment
+                                  - variable
+                                    - model
+                                      - realization
+    Example:
+        dataDict = getESGFDatasets('CMIP6', 'historical', 'tas')
+        print(dataDict['historical']['ts']['CESM2'])
+
+            ['r11i1p1f1',
+             'r10i1p1f1',
+             'r9i1p1f1',
+             .
+             .
+             .]
+
+
+
+    """
+    # Create search connection
+    conn = SearchConnection('https://esgf-node.llnl.gov/esg-search/', distrib=True)
+    # search based on mip controlled vocabulary
+    if mip_era == 'CMIP6':
+        ctx = conn.new_context(variable=variable,
+                               frequency=frequency,
+                               experiment_id=experiment,
+                               table_id=table,
+                               facets='experiment,model')
+    else:
+        ctx = conn.new_context(project=mip_era,
+                               variable=variable,
+                               time_frequency=frequency,
+                               experiment=experiment,
+                               cmor_table=table,
+                               facets='experiment,model')
+    # perform search
+    ds = ctx.search()
+    dataDict = {}  # initialize output dictionary
+    # loop over and parse each dataset into dictionary
+    for x in ds:
+        items = x.dataset_id.split('|')[0].split('.')
+        if items[0] == 'cmip3':
+            mip_era, institution, model, experiment, frequency, \
+                realm, member, variable, version = items
+        elif items[0] == 'cmip5':
+            if len(items) == 10:
+                mip_era, product, institution, model, experiment, \
+                    frequency, realm, table, member, version = items
+            else:
+                mip_era, product, institution, model, experiment, \
+                    frequency, realm, member, version = items
+        elif items[0] == 'CMIP6':
+            mip_era, activity, institution, model, experiment, member, \
+                table, variable, grid, version = items
+
+        # store dataset in dictionary
+        if experiment not in dataDict.keys():
+            dataDict[experiment] = {variable: {model: [member]}}
+        elif variable not in dataDict[experiment].keys():
+            dataDict[experiment][variable] = {model: [member]}
+        elif model not in dataDict[experiment][variable].keys():
+            dataDict[experiment][variable][model] = [member]
+        elif member not in dataDict[experiment][variable][model]:
+            members = dataDict[experiment][variable][model]
+            members.append(member)
+            dataDict[experiment][variable][model] = members
+
+    return dataDict
+
+
+def listCompleteModels(dataDict):
+    """
+    models = listCompleteModels(dataDict)
+
+    Function takes in a data dictionary generated from getESGFDatasets
+    and returns a list of models that have all of the variables and are
+    included in all of the experiments in the output dictionary.
+    """
+    # get models with data for each experiment and variable
+    initialized = False
+    for experiment in dataDict.keys():
+        for variable in dataDict[experiment]:
+            models = list(set(dataDict[experiment][variable]))
+            if initialized:
+                modelList = list(set(modelList) & set(models))
+            else:
+                modelList = models
+    return models
