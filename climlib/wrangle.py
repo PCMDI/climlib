@@ -414,12 +414,17 @@ def listCompleteModels(dataDict):
     included in all of the experiments in the output dictionary.
     """
     # get models with data for each experiment and variable
-    initialized = False
+    varInitialized = False
+    expInitialized = False
     for experiment in dataDict.keys():
         for variable in dataDict[experiment]:
             models = list(set(dataDict[experiment][variable]))
-            if initialized:
-                modelList = list(set(modelList) & set(models))
+            if varInitialized:
+                modelVarList = list(set(modelList) & set(models))
             else:
-                modelList = models
+                modelVarList = models
+        if expInitialized:
+            modelExpList = list(set(modelExpList) & set(modelVarList))
+        else:
+            modelExpList = modelVarList
     return models
