@@ -321,9 +321,12 @@ def findInList(keyString, inList):
     return outList
 
 
-def getESGFDatasets(mip_era, experiment, variable, frequency=None, table=None):
+def esgfSearch(mip_era, experiment, variable, frequency=None, table=None):
     """
-    dataDict = getESGFDatasets(mip_era, experiment, variable)
+
+    ctx = esgfSearch(mip_era, experiment, variable)
+
+    Perform an esgfSearch and return DatasetSearchContext.
 
     Inputs:
         mip_era (str):        CMIP3, CMIP5, or CMIP6
@@ -335,96 +338,99 @@ def getESGFDatasets(mip_era, experiment, variable, frequency=None, table=None):
         table (str):          table id to search for
 
     Returns:
-        dataDict              Nested dictionary of available datasets:
-                                - experiment
-                                  - variable
-                                    - model
-                                      - realization
-    Example:
-        dataDict = getESGFDatasets('CMIP6', 'historical', 'tas')
-        print(dataDict['historical']['ts']['CESM2'])
-
-            ['r11i1p1f1',
-             'r10i1p1f1',
-             'r9i1p1f1',
-             .
-             .
-             .]
-
-
+        ctx:                  DatasetSearchContext
 
     """
     # Create search connection
     conn = SearchConnection('https://esgf-node.llnl.gov/esg-search/', distrib=True)
     # search based on mip controlled vocabulary
-    if mip_era == 'CMIP6':
+    if mip_era.upper() == 'CMIP6':
         ctx = conn.new_context(variable=variable,
                                frequency=frequency,
                                experiment_id=experiment,
                                table_id=table,
-                               facets='experiment,model')
+                               facets='source_id')
     else:
-        ctx = conn.new_context(project=mip_era,
+        ctx = conn.new_context(project=mip_era.upper(),
                                variable=variable,
                                time_frequency=frequency,
                                experiment=experiment,
                                cmor_table=table,
-                               facets='experiment,model')
-    # perform search
-    ds = ctx.search()
-    dataDict = {}  # initialize output dictionary
-    # loop over and parse each dataset into dictionary
-    for x in ds:
-        items = x.dataset_id.split('|')[0].split('.')
-        if items[0] == 'cmip3':
-            mip_era, institution, model, experiment, frequency, \
-                realm, member, variable, version = items
-        elif items[0] == 'cmip5':
-            if len(items) == 10:
-                mip_era, product, institution, model, experiment, \
-                    frequency, realm, table, member, version = items
-            else:
-                mip_era, product, institution, model, experiment, \
-                    frequency, realm, member, version = items
-        elif items[0] == 'CMIP6':
-            mip_era, activity, institution, model, experiment, member, \
-                table, variable, grid, version = items
-
-        # store dataset in dictionary
-        if experiment not in dataDict.keys():
-            dataDict[experiment] = {variable: {model: [member]}}
-        elif variable not in dataDict[experiment].keys():
-            dataDict[experiment][variable] = {model: [member]}
-        elif model not in dataDict[experiment][variable].keys():
-            dataDict[experiment][variable][model] = [member]
-        elif member not in dataDict[experiment][variable][model]:
-            members = dataDict[experiment][variable][model]
-            members.append(member)
-            dataDict[experiment][variable][model] = members
-
-    return dataDict
+                               facets='model')
+    return ctx
 
 
-def listCompleteModels(dataDict):
+def getAvailableModels(mip_era, experiment, variable, frequency=None, table=None):
     """
-    models = listCompleteModels(dataDict)
+    models = getAvailableModels(mip_era, experiment, variable)
 
-    Function takes in a data dictionary generated from getESGFDatasets
-    and returns a list of models that have all of the variables and are
-    included in all of the experiments in the output dictionary.
+    Inputs:
+        mip_era (str):        CMIP3, CMIP5, or CMIP6
+        experiment (str):     experiment id to search for (e.g., 'historical')
+        variable (str):       variable id to search for (e.g., 'tas,ta')
+
+    Optional arguments:
+        frequency (str):      frequency to search for (e.g., mon)
+        table (str):          table id to search for
+
+    Returns:
+        models:               list of available models
+
+    Example:
+        models = getAvailableModels('CMIP6', 'historical', 'tas')
+        print(models)
+            ['ACCESS-CM2',
+            'ACCESS-ESM1-5',
+            'AWI-CM-1-1-MR',
+            'BCC-CSM2-MR',
+            ...]
+
     """
-    # get models with data for each experiment and variable
-    varInitialized = False
-    expInitialized = False
-    for experiment in dataDict.keys():
-        for variable in dataDict[experiment]:
-            models = list(set(dataDict[experiment][variable]))
-            if varInitialized:
-                modelVarList = list(set(modelList) & set(models))
-            else:
-                modelVarList = models
-        if expInitialized:
-            modelExpList = list(set(modelExpList) & set(modelVarList))
-        else:
-            modelExpList = modelVarList
+    # get esgf search connection results
+    ctx = esgfSearch(mip_era, experiment, variable, frequency=frequency, table=table)
+    if mip_era.upper() == 'CMIP6':
+        models = list(ctx.facet_counts['source_id'].keys())
+    else:
+        models = list(ctx.facet_counts['model'].keys())
+    if not models is None:
+        models.sort()
+
     return models
+
+def getModelSet(mip_era, experiments, variables):
+    """
+    models = getModelSet(mip_era, experiments, variables)
+
+    Inputs:
+        mip_era (str):        CMIP3, CMIP5, or CMIP6
+        experiment (list):    list of experiment ids to search
+                              for (e.g., ['historical', 'ssp585'])
+        variables (str):      list variable ids to search for (e.g.,
+                              ['tas', ta'])
+
+    Returns:
+        models:               list of available models have data for all
+                              variables and all experiments
+
+    Example:
+        models = getModelSet('CMIP6', ['historical', 'ssp585'],
+                             ['ts', 'ta', 'siconc', 'ps'])
+        print(models)
+            ['ACCESS-CM2',
+            'ACCESS-ESM1-5',
+            'AWI-CM-1-1-MR',
+            'BCC-CSM2-MR',
+            ...]
+
+    """
+    allModels = None
+    for experiment in experiments:
+        for variable in variables:
+            models = getAvailableModels(mip_era, experiment, variable)
+            if allModels == None:
+                allModels = models
+            else:
+                allModels = list(set(allModels) & set(models))
+
+    return allModels
+

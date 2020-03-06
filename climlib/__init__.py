@@ -14,9 +14,8 @@ Includes these modules:
 
 
 from .wrangle import trimModelList
-from .wrangle import getFileMeta
 from .wrangle import getXmlFiles
 from .wrangle import findInList
-from .wrangle import getESGFDatasets
-from .wrangle import listCompleteModels
+from .wrangle import getAvailableModels
+from .wrangle import getModelSet
 from .dev import *
