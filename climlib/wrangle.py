@@ -397,7 +397,7 @@ def getAvailableModels(mip_era, experiment, variable, frequency=None, table=None
 
     return models
 
-def getModelSet(mip_era, experiments, variables):
+def getModelSet(mip_era, experiments, variables, frequency=None):
     """
     models = getModelSet(mip_era, experiments, variables)
 
@@ -426,8 +426,12 @@ def getModelSet(mip_era, experiments, variables):
     allModels = None
     for experiment in experiments:
         for variable in variables:
-            models = getAvailableModels(mip_era, experiment, variable)
-            if allModels == None:
+            models = getAvailableModels(mip_era, experiment, variable, frequency=frequency)
+            if not 'GFDL-CM4' in models:
+                print(variable, experiment)
+            if models is None:
+                models = []
+            if allModels is None:
                 allModels = models
             else:
                 allModels = list(set(allModels) & set(models))
