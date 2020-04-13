@@ -18,4 +18,4 @@ from .wrangle import getXmlFiles
 from .wrangle import findInList
 from .wrangle import getAvailableModels
 from .wrangle import getModelSet
-from .dev import *
+from .wrangle import getCitationFromTrackingId

@@ -17,6 +17,8 @@ import numpy as np
 import cdms2
 import glob
 from pyesgf.search import SearchConnection
+import requests
+import xml.etree.ElementTree as ET
 
 
 def filterXmls(files, keyMap, crit):
@@ -321,7 +323,8 @@ def findInList(keyString, inList):
     return outList
 
 
-def esgfSearch(mip_era, experiment, variable, frequency=None, table=None):
+def esgfSearch(mip_era, experiment, variable, frequency=None, table=None,
+               model=None, member=None, latest=True):
     """
 
     ctx = esgfSearch(mip_era, experiment, variable)
@@ -349,6 +352,9 @@ def esgfSearch(mip_era, experiment, variable, frequency=None, table=None):
                                frequency=frequency,
                                experiment_id=experiment,
                                table_id=table,
+                               source_id=model,
+                               variant_label=member,
+                               latest=latest,
                                facets='source_id')
     else:
         ctx = conn.new_context(project=mip_era.upper(),
@@ -356,6 +362,9 @@ def esgfSearch(mip_era, experiment, variable, frequency=None, table=None):
                                time_frequency=frequency,
                                experiment=experiment,
                                cmor_table=table,
+                               model=model,
+                               ensemble=member,
+                               latest=latest,
                                facets='model')
     return ctx
 
@@ -436,3 +445,58 @@ def getModelSet(mip_era, experiments, variables, frequency=None):
 
     return allModels
 
+
+def getCitationFromTrackingId(tracking_id, verify=False):
+    """
+    '''
+        textCitation = getCitationFromTrackingId(tracking_id, verify=False)
+
+        getCitationFromTrackingId generates a text citation for a given CMIP6
+        dataset tracking id. You can also specify whether SSL should be
+        verified (default false).
+
+        Inputs:
+            tracking_id (str)     tracking id from CMIP6 NetCDF file header
+                                  (e.g. 'hdl:21.14100/a360be6a-895f-4631-8db4-d07b50bd21b4')
+            verify (boolean)      flag for ssl verification (default False)
+
+    '''
+    """
+    if not verify:
+        requests.packages.urllib3.disable_warnings()
+    # define url
+    url = 'https://esgf-node.llnl.gov/esg-search/' + 'search?type=File&tracking_id=' + tracking_id
+    # use requests to get dataset data (xml form)
+    # use archaic syntax to parse zml for citation url
+    # and version
+    r = requests.get(url)
+    requestContent = r.content
+    root = ET.fromstring(requestContent)
+    for child in root.iter('*'):
+        if 'name' in child.attrib.keys():
+            name = child.attrib['name']
+            # print(name)
+            if name == 'dataset_id':
+                did = child.text
+                vid = did.split('|')[0].split('.')[-1].split('v')[1]
+            if name == 'citation_url':
+                citUrl = child[0].text
+    # get citation information
+    r = requests.get(citUrl, verify=False)
+    data = r.json()
+    # get citation fields
+    doi = data['identifier']['id']
+    creators = data['creators']
+    authors = []
+    for i, creator in enumerate(creators):
+        author = creator['creatorName']
+        authors.append(author)
+    authorString = ', '.join(authors)
+    title = data['titles'][0]
+    publisher = data['publisher']
+    pubYear = data['publicationYear']
+    # put it all together
+    citation = authorString + ' (' + pubYear + '). ' + title + '. Version '
+    vid + '. ' + publisher + ' doi: ' + doi + '.'
+
+    return citation
